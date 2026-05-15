@@ -110,7 +110,7 @@ class KeywordRNN(nn.Module):
     def forward(self, x):
         # x: (batch, seq_len)
         e, _ = self.rnn(self.embedding(x))  # (B, L, hidden_dim)
-        pooled = self.dropout(e[:, -1, :])
+        pooled = self.dropout(self.bn(e[:, -1, :]))
         out = self.fc(pooled)               # (B, 5)
         return out
 
@@ -143,10 +143,9 @@ class KeywordRNN_v2(nn.Module):
         e, _ = self.rnn(self.embedding(x))  # (B, L, hidden_dim)
         e, _ = self.lstm(e)  # (B, L, hidden_dim)
 
-        # pooled = e.max(dim=1)[0]            # (B, hidden_dim)  对序列做 max pooling
-        # pooled = self.bn(e[:, -1, :])  # 取最后一个时间步的隐藏状态做分类
+        pooled = self.bn(e[:, -1, :])  # 取最后一个时间步的隐藏状态做分类
         
-        pooled = self.dropout(e[:, -1, :])
+        pooled = self.dropout(pooled)
         out = self.fc(pooled)               # (B, 5)
         return out
 
@@ -164,7 +163,6 @@ class KeywordRNN_v3(nn.Module):
     def forward(self, x):
         emb = self.embedding(x)                    # (B, L, embed_dim)
         lstm_out, (hidden, cell) = self.lstm(emb)  # hidden: (1, B, hidden_dim)
-        # pooled = lstm_out.max(dim=1)[0]            # (B, hidden_dim)  对序列做 max pooling
         pooled = lstm_out[:, -1, :]  # 取最后一个时间步的隐藏状态做分类
         pooled = self.dropout(self.bn(pooled))
         out = self.fc(pooled)                     # (B, 5)
@@ -172,7 +170,7 @@ class KeywordRNN_v3(nn.Module):
 
 class KeywordRNN_v4(nn.Module):  
     """中文关键词分类器 (Embedding + 双向LSTM) 
-    架构: Embedding → LSTM → BN → Dropout → Linear → (CrossEntropyLoss)"""
+    架构: Embedding → LSTM → Dropout → Linear → (CrossEntropyLoss)"""
     """直接识别'你'位置的模型"""
     def __init__(self, vocab_size, embed_dim=32, hidden_dim=64):
         super().__init__()
@@ -194,6 +192,24 @@ class KeywordRNN_v4(nn.Module):
         out = self.fc(out)
         return out
 
+class KeywordRNN_v5(nn.Module):  
+    """中文关键词分类器 (Embedding + 双向LSTM) 
+    架构: Embedding → Dropout → Linear → (CrossEntropyLoss)
+    演示没有 RNN 的架构: 没有序列建模 + Max Pooling 丢失位置信息 = 随机猜测水平
+    """
+    def __init__(self, vocab_size, embed_dim=32, hidden_dim=64):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
+        self.fc = nn.Linear(embed_dim, 5)
+        self.dropout = nn.Dropout(0.3)
+        
+    def forward(self, x):
+        emb = self.embedding(x)             # (B, L, embed_dim)
+        pooled = emb.max(dim=1)[0]          # 对所有位置的 embedding 取每个维度的最大值
+        pooled = self.dropout(pooled)
+        out = self.fc(pooled)
+        return out
+    
 # ─── 5. 训练与评估 ──────────────────────────────────────────
 def evaluate(model, loader):
     model.eval()
