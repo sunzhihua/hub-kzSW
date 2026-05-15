@@ -26,7 +26,6 @@ import math
     1、勿用torch.nn.Transformer或torch.nn.MultiheadAttention等高级API
     2、勿用torch.nn.LayerNorm等高级API
     3、勿用torch.nn.Linear等高级API
-    4、勿用torch.nn.ModuleList等高级API
 
 输入向量:
     标准输入 x : x.shape = (batch_size, seq_len, d_model)
